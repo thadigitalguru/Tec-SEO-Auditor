@@ -3,7 +3,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // DO NOT add url or directUrl here
+  adapter  = "pg"
 }
 
 generator client {
@@ -12,7 +12,6 @@ generator client {
 
 model Audit {
   id        String   @id @default(cuid())
-  url       String
   results   Json     // LH scores, custom checks
   summary   String?  // AI insights
   createdAt DateTime @default(now())
