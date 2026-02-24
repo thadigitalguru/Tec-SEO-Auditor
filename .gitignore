@@ -32,9 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_aW50ZW5zZS1wYW50aGVyLTMyLmNsZXJrLmFjY291bnRzLmRldiQ
+CLERK_SECRET_KEY=sk_test_rtfB2bya3Lh18A9yjbmZ9PDCceclEv27XcNcjrfGW1verc
 
 # vercel
 .vercel
+POSTGRES_URL=postgres://postgres.umeicjsuwplgodcwvouw:bymCZMxtFsi4akso@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x
+POSTGRES_DATABASE=postgres
 
 # typescript
 *.tsbuildinfo
