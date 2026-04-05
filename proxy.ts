@@ -7,5 +7,5 @@ export default clerkMiddleware(async (auth, req) => {
 })
 
 export const config = {
-  matcher: '/((?!.+\\.[\\w]+$|_next).*)', 
+  matcher: '/((?!.+\\.[\\w]+$|_next).*)',
 }
