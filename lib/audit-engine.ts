@@ -1,6 +1,6 @@
 import { PlaywrightCrawler } from 'crawlee'
 import lighthouse from 'lighthouse'
-import { generateText } from 'ai'
+// import { generateText } from 'ai'
 
 export async function auditSite(url: string) {
   // Stub: crawl + LH + AI
