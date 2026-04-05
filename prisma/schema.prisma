@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
 }
 
 datasource db {
@@ -12,4 +13,64 @@ model Audit {
   summary   String?  // AI insights
   createdAt DateTime @default(now())
   userId    String?
+}
+
+model ScheduledAudit {
+  id          String   @id @default(cuid())
+  targetUrl   String
+  cadenceDays Int
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  lastAuditId String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String?
+}
+
+model ScheduledAuditRun {
+  id         String   @id @default(cuid())
+  scheduleId String
+  targetUrl  String
+  auditId    String?
+  status     String
+  error      String?
+  runAt      DateTime @default(now())
+  userId     String?
+
+  @@index([scheduleId, runAt])
+  @@index([targetUrl, userId, runAt])
+}
+
+model ScoreAlertRule {
+  id          String   @id @default(cuid())
+  targetUrl   String
+  dropPoints  Int      @default(5)
+  active      Boolean  @default(true)
+  deliveryChannel String @default("webhook")
+  deliveryTarget  String?
+  cooldownHours Int      @default(24)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String?
+}
+
+model ScoreAlertEvent {
+  id             String   @id @default(cuid())
+  ruleId         String
+  auditId        String
+  previousAuditId String?
+  targetUrl      String
+  metricKey      String
+  metricLabel    String
+  previousScore  Int
+  currentScore   Int
+  delta          Int
+  deliveryChannel String?
+  deliveryTarget  String?
+  deliveryStatus  String?
+  deliveryError   String?
+  deliveredAt     DateTime?
+  createdAt      DateTime @default(now())
+  userId         String?
 }
