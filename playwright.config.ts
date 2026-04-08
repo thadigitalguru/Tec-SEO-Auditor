@@ -5,12 +5,12 @@ export default defineConfig({
   testMatch: /.*\.e2e\.ts/,
   fullyParallel: false,
   webServer: {
-    command: 'AUDIT_E2E_MODE=1 pnpm exec next dev -H 127.0.0.1 -p 3000',
-    url: 'http://127.0.0.1:3000',
+    command: 'AUDIT_E2E_MODE=1 PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173 pnpm exec next dev -H 0.0.0.0 -p 4173',
+    url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
   },
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: 'http://127.0.0.1:4173',
   },
 })

@@ -68,7 +68,7 @@ describe('createAuditSite', () => {
     expect(report.lighthouse.scores.performance).toBe(72)
     expect(report.summary.source).toBe('heuristic')
     expect(report.summary.priorities[0]?.title).toBe('Improve performance')
-    expect(report.signals).toHaveLength(20)
+    expect(report.signals).toHaveLength(25)
     expect(report.signals?.[0]?.label).toBe('GPTBot access')
   })
 
@@ -79,7 +79,7 @@ describe('createAuditSite', () => {
     expect(report.crawl.pages).toHaveLength(1)
     expect(report.lighthouse.scores.performance).toBeGreaterThan(0)
     expect(report.summary.priorities.length).toBeGreaterThan(0)
-    expect(report.signals).toHaveLength(20)
+    expect(report.signals).toHaveLength(25)
     expect(report.signals?.every((signal) => signal.status === 'pass' || signal.status === 'warn')).toBe(true)
     expect(report.signals?.map((signal) => signal.label)).toEqual(
       expect.arrayContaining([
@@ -89,6 +89,7 @@ describe('createAuditSite', () => {
         'Meta description',
         'Duplicate titles',
         'Duplicate descriptions',
+        'Robots.txt',
         'Sitemap coverage',
         'Open Graph title',
         'Open Graph description',
@@ -99,10 +100,14 @@ describe('createAuditSite', () => {
         'H1 heading',
         'Heading structure',
         'Image alt text',
+        'Mixed content',
+        'Internal links',
+        'Crawl depth',
         'Indexability',
         'Orphan candidates',
         'Redirects',
         'Broken URLs',
+        'Crawl failure rate',
       ]),
     )
   })

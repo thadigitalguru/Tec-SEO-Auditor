@@ -16,6 +16,7 @@ export interface CrawledPage {
   title: string
   status: number
   links: string[]
+  depth?: number
   facts?: PageFacts
 }
 
@@ -81,6 +82,7 @@ interface PageFacts {
   headingLevels: number[]
   imageCount: number
   missingAltCount: number
+  mixedContentCount: number
   noindex: boolean
 }
 
@@ -168,6 +170,7 @@ export function createMockAuditReport(url: string): AuditReport {
         title: `${hostLabel} landing page for technical SEO review`,
         status: 200,
         links: [`${targetUrl.origin}/about`],
+        depth: 0,
         facts: {
           hasViewportMeta: true,
           metaDescription: `Audit-ready landing page for ${hostLabel} with concise metadata and technical SEO defaults.`,
@@ -181,6 +184,7 @@ export function createMockAuditReport(url: string): AuditReport {
           headingLevels: [1, 2],
           imageCount: 2,
           missingAltCount: 0,
+          mixedContentCount: 0,
           noindex: false,
         },
       },
@@ -222,7 +226,7 @@ export async function crawlSite(url: string, options: AuditOptions = {}): Promis
   const targetUrl = normalizeTargetUrl(url)
   const maxPages = clampInt(options.maxPages, 1, 25, 10)
   const timeoutMs = clampInt(options.crawlTimeoutMs, 1000, 60_000, 10_000)
-  const queue: string[] = [targetUrl.href]
+  const queue: Array<{ url: string; depth: number }> = [{ url: targetUrl.href, depth: 0 }]
   const seen = new Set<string>()
   const discovered = new Set<string>()
   const failedUrls: string[] = []
@@ -231,11 +235,13 @@ export async function crawlSite(url: string, options: AuditOptions = {}): Promis
   const { sitemapUrls, pageUrls, robotsTxt } = await collectSitemapUrls(targetUrl, timeoutMs)
 
   for (const pageUrl of pageUrls) {
-    queue.push(pageUrl)
+    queue.push({ url: pageUrl, depth: 0 })
   }
 
   while (queue.length > 0 && pages.length < maxPages) {
-    const currentUrl = queue.shift()
+    const current = queue.shift()
+    const currentUrl = current?.url
+    const currentDepth = current?.depth ?? 0
 
     if (!currentUrl || seen.has(currentUrl)) {
       continue
@@ -257,7 +263,7 @@ export async function crawlSite(url: string, options: AuditOptions = {}): Promis
       })
     }
 
-    const page = parseHtmlPage(finalUrl, response.body, response.status)
+    const page = parseHtmlPage(finalUrl, response.body, response.status, currentDepth)
     pages.push(page)
 
     for (const link of page.links) {
@@ -266,7 +272,7 @@ export async function crawlSite(url: string, options: AuditOptions = {}): Promis
       }
 
       if (!seen.has(link) && pages.length + queue.length < maxPages) {
-        queue.push(link)
+        queue.push({ url: link, depth: currentDepth + 1 })
       }
     }
   }
@@ -466,15 +472,16 @@ async function fetchText(
   }
 }
 
-function parseHtmlPage(url: string, html: string, status: number): CrawledPage {
+function parseHtmlPage(url: string, html: string, status: number, depth = 0): CrawledPage {
   const links = extractLinks(html, url)
   return {
     url,
-        title: extractTitle(html),
-        status,
-        links,
-        facts: extractPageFacts(html),
-      }
+    title: extractTitle(html),
+    status,
+    links,
+    depth,
+    facts: extractPageFacts(html),
+  }
 }
 
 function extractPageFacts(html: string): PageFacts {
@@ -491,6 +498,7 @@ function extractPageFacts(html: string): PageFacts {
     headingLevels: extractHeadingLevels(html),
     imageCount: countMatches(html, /<img\b[^>]*>/gi),
     missingAltCount: countMissingAltImages(html),
+    mixedContentCount: countMixedContentReferences(html),
     noindex: /<meta\b[^>]*name\s*=\s*["']robots["'][^>]*content\s*=\s*["'][^"']*noindex[^"']*["'][^>]*>/i.test(html),
   }
 }
@@ -590,6 +598,15 @@ function countMissingAltImages(html: string): number {
   }
 
   return missing
+}
+
+function countMixedContentReferences(html: string): number {
+  const patterns = [
+    /<(?:img|script|link|iframe|source|video|audio|track)\b[^>]*(?:src|href)\s*=\s*["']http:\/\/[^"']+["'][^>]*>/gi,
+    /<(?:form)\b[^>]*action\s*=\s*["']http:\/\/[^"']+["'][^>]*>/gi,
+  ]
+
+  return patterns.reduce((total, pattern) => total + countMatches(html, pattern), 0)
 }
 
 function escapeRegExp(value: string): string {
@@ -830,12 +847,17 @@ function buildAuditSignals(crawl: CrawlResult): AuditSignal[] {
   const facts = rootPage?.facts
   const orphanCandidates = Math.max(0, crawl.discoveredUrls.length - crawl.pages.length)
   const robotsStatus = inspectGptBotAccess(crawl.robotsTxt)
+  const robotsTxtPresent = Boolean(crawl.robotsTxt?.trim())
   const titleLength = rootPage?.title.trim().length ?? 0
   const metaDescriptionLength = facts?.metaDescription?.trim().length ?? 0
   const canonicalStatus = inspectCanonicalHref(rootPage?.url ?? null, facts?.canonicalHref ?? null)
   const h1Count = facts?.h1Count ?? 0
   const sitemapCount = crawl.sitemapUrls.length
   const failedUrlCount = crawl.failedUrls?.length ?? 0
+  const failedUrlTotal = failedUrlCount + crawl.pages.length
+  const maxCrawlDepth = crawl.pages.reduce((max, page) => Math.max(max, page.depth ?? 0), 0)
+  const internalLinkCount = rootPage?.links.length ?? 0
+  const mixedContentCount = facts?.mixedContentCount ?? 0
   const titleDuplicateCount = countDuplicateValues(crawl.pages.map((page) => page.title.trim()).filter(Boolean))
   const metaDescriptionDuplicateCount = countDuplicateValues(
     crawl.pages.map((page) => page.facts?.metaDescription?.trim() ?? '').filter(Boolean),
@@ -864,6 +886,14 @@ function buildAuditSignals(crawl: CrawlResult): AuditSignal[] {
       label: 'GPTBot access',
       status: robotsStatus.status,
       detail: robotsStatus.detail,
+    },
+    {
+      key: 'robots-txt',
+      label: 'Robots.txt',
+      status: robotsTxtPresent ? 'pass' : 'warn',
+      detail: robotsTxtPresent
+        ? 'robots.txt was discovered during the crawl.'
+        : 'No robots.txt file was discovered during the crawl.',
     },
     {
       key: 'sitemap-coverage',
@@ -988,6 +1018,33 @@ function buildAuditSignals(crawl: CrawlResult): AuditSignal[] {
       detail: altStatus.detail,
     },
     {
+      key: 'mixed-content',
+      label: 'Mixed content',
+      status: mixedContentCount === 0 ? 'pass' : 'warn',
+      detail:
+        mixedContentCount === 0
+          ? 'No mixed-content references were found on the first crawled page.'
+          : `${mixedContentCount} mixed-content reference(s) were found on the first crawled page.`,
+    },
+    {
+      key: 'internal-links',
+      label: 'Internal links',
+      status: internalLinkCount > 0 ? 'pass' : 'warn',
+      detail:
+        internalLinkCount > 0
+          ? `The first crawled page contains ${internalLinkCount} internal link(s).`
+          : 'No internal links were found on the first crawled page.',
+    },
+    {
+      key: 'crawl-depth',
+      label: 'Crawl depth',
+      status: maxCrawlDepth <= 2 ? 'pass' : 'warn',
+      detail:
+        maxCrawlDepth <= 2
+          ? `The crawl reached a maximum depth of ${maxCrawlDepth}.`
+          : `The crawl reached a maximum depth of ${maxCrawlDepth}, which is deeper than the preferred target.`,
+    },
+    {
       key: 'noindex',
       label: 'Indexability',
       status: facts?.noindex ? 'fail' : 'pass',
@@ -1021,6 +1078,15 @@ function buildAuditSignals(crawl: CrawlResult): AuditSignal[] {
         failedUrlCount === 0
           ? 'No failed fetches were encountered during the crawl.'
           : `${failedUrlCount} URL(s) failed to load during the crawl.`,
+    },
+    {
+      key: 'crawl-failure-rate',
+      label: 'Crawl failure rate',
+      status: failedUrlTotal === 0 ? 'pass' : failedUrlCount / failedUrlTotal <= 0.2 ? 'warn' : 'fail',
+      detail:
+        failedUrlTotal === 0
+          ? 'No crawl attempts were recorded.'
+          : `${failedUrlCount} of ${failedUrlTotal} crawl attempt(s) failed.`,
     },
   ]
 }

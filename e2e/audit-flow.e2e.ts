@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 
+import { E2E_BASE_URL } from './test-helpers'
+
 test.describe('audit flow', () => {
   test.setTimeout(240_000)
 
   test('submits URLs, compares reports, and revisits history', async ({ page }) => {
-    const firstTargetUrl = `http://127.0.0.1:3000/audit-target?run=${Date.now()}-one`
-    const secondTargetUrl = `http://127.0.0.1:3000/audit-target?run=${Date.now()}-two`
+    const firstTargetUrl = `${E2E_BASE_URL}/audit-target?run=${Date.now()}-one`
+    const secondTargetUrl = `${E2E_BASE_URL}/audit-target?run=${Date.now()}-two`
 
     await page.goto('/')
     await page.getByRole('textbox', { name: /website url/i }).fill(firstTargetUrl)
@@ -35,7 +37,7 @@ test.describe('audit flow', () => {
 
     await page.getByRole('combobox', { name: /drop threshold/i }).selectOption('3')
     await page.getByRole('textbox', { name: /delivery target/i }).fill(
-      `http://127.0.0.1:3000/webhook-${Date.now()}`,
+      `${E2E_BASE_URL}/webhook-${Date.now()}`,
     )
     await page.getByRole('button', { name: /save alert|update alert/i }).click()
     await expect(page.getByText(/alert rule saved/i)).toBeVisible()
